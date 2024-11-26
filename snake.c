@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdbool.h>
-
+#include <signal.h>
 
 #define ROWS 15
 #define COLS 15
@@ -33,10 +33,17 @@ char getch();
 void delay(int milliseconds);
 void enable_raw_mode();
 void disable_raw_mode();
+void exit_game(int signal);
+
+// Signal handler setup for graceful exit
+void setup_signal_handlers();
 
 int main() {
     // Enable raw mode for terminal input
     enable_raw_mode();
+    
+    // Setup signal handlers for SIGINT and SIGTERM
+    setup_signal_handlers();
 
     initialize_game();
 
@@ -46,6 +53,10 @@ int main() {
             char input = getch();
             if (input == 'w' || input == 'a' || input == 's' || input == 'd') {
                 direction = input;
+            }
+            if (input == 'q') {
+                // Gracefully exit the game when 'q' is pressed
+                exit_game(0);
             }
         }
         update_snake(direction);
@@ -82,29 +93,33 @@ void initialize_game() {
     generate_food();
 }
 
-
 void draw_board() {
     system("clear"); // Clear the terminal screen
 
     for (int i = 0; i < ROWS; i++) {
         for (int j = 0; j < COLS; j++) {
             int is_snake = 0;
+            int is_head = 0;
 
-            // Check if the current cell is part of the snake
-            for (int k = 0; k < snake_length; k++) {
-                if (snake[k].x == i && snake[k].y == j) {
-                    is_snake = 1;
-                    if (k == snake_length - 1) {
-                        printf("O "); // Snake's head
-                    } else {
+            // Check if the current cell is the snake's head
+            if (snake[snake_length - 1].x == i && snake[snake_length - 1].y == j) {
+                is_head = 1;
+                printf("O "); // Snake's head
+            }
+
+            // Check if the current cell is part of the snake's body
+            if (!is_head) { // Only check for body if it's not the head
+                for (int k = 0; k < snake_length - 1; k++) {
+                    if (snake[k].x == i && snake[k].y == j) {
+                        is_snake = 1;
                         printf("# "); // Snake's body
+                        break;
                     }
-                    break;
                 }
             }
 
-            // Print the food or empty cell
-            if (!is_snake) {
+            // Print the food or empty cell if not part of the snake
+            if (!is_snake && !is_head) {
                 if (food.x == i && food.y == j) {
                     printf("X ");
                 } else {
@@ -115,7 +130,6 @@ void draw_board() {
         printf("\n");
     }
 }
-
 
 void generate_food() {
     srand(time(NULL));
@@ -170,27 +184,11 @@ void update_snake(char input) {
     }
 }
 
-
-
-
-
-
 int check_collision() {
     Point head = snake[snake_length - 1];
 
-    // Check border collision
-    if (head.x < 0 || head.x >= ROWS || head.y < 0 || head.y >= COLS) {
-        return 1;
-    }
-
-    // Check self-collision
-    for (int i = 0; i < snake_length - 1; i++) {
-        if (snake[i].x == head.x && snake[i].y == head.y) {
-            return 1;
-        }
-    }
-
-    return 0;
+    // Allow the snake to pass over itself; no need to stop or treat this as a collision.
+    return 0; // Always return 0 to ignore self-collision.
 }
 
 int kbhit() {
@@ -251,4 +249,27 @@ void enable_raw_mode() {
 void disable_raw_mode() {
     // Restore original terminal settings
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
+}
+
+// Gracefully exit the game
+void exit_game(int signal) {
+    (void) signal; // Avoid unused parameter warning
+    printf("\nExiting the game...\n");
+
+    // Restore terminal settings
+    disable_raw_mode();
+
+    exit(0);
+}
+
+// Set up signal handlers for SIGINT and SIGTERM
+void setup_signal_handlers() {
+    struct sigaction sa;
+    sa.sa_handler = exit_game;
+    sa.sa_flags = 0;
+    sigemptyset(&sa.sa_mask);
+
+    // Handle SIGINT (Ctrl+C) and SIGTERM signals
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
 }
