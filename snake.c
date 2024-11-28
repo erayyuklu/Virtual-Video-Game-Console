@@ -167,22 +167,21 @@ void update_snake(char input) {
     bool ate_food = (next_head.x == food.x && next_head.y == food.y);
 
     if (ate_food) {
-        // Grow the snake
+        // Grow the snake by not shifting the tail
         snake_length++;
-    }
-
-    // Shift the snake's body
-    for (int i = 0; i < snake_length - 1; i++) {
-        snake[i] = snake[i + 1];
+        generate_food(); // Generate new food
+    } else {
+        // Shift the snake's body only if no food was eaten
+        for (int i = 0; i < snake_length - 1; i++) {
+            snake[i] = snake[i + 1];
+        }
     }
 
     // Add the new head position
     snake[snake_length - 1] = next_head;
-
-    if (ate_food) {
-        generate_food(); // Generate new food after growing the snake
-    }
 }
+
+
 
 int check_collision() {
     Point head = snake[snake_length - 1];

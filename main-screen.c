@@ -1,109 +1,125 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <dirent.h>
 #include <string.h>
+#include <dirent.h>
+#include <signal.h>
 #include <termios.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <signal.h>
 
 #define MAX_GAMES 100
 #define MAX_NAME_LEN 256
 
-// Terminal configuration
-struct termios orig_termios;
 
-// Game list and selected index
+
+struct termios orig_termios;
 char games[MAX_GAMES][MAX_NAME_LEN];
-int num_games = 0;
+int game_count = 0;
 int selected_game = 0;
+int selected_button = 0; // 0: Play, 1: Exit
 
 void enable_raw_mode();
 void disable_raw_mode();
-void handle_exit(int signum);
-void load_games();
-void draw_screen();
+void handle_signal(int sig);
+void scan_games();
+void draw_menu();
+void execute_game(char[MAX_NAME_LEN]);
 int kbhit();
 char getch();
 void delay(int milliseconds);
 
 int main() {
-    // Setup signal handlers for graceful exit
-    signal(SIGINT, handle_exit);
-    signal(SIGTERM, handle_exit);
+    // Set up signal handling
+    signal(SIGINT, handle_signal);
+    signal(SIGTERM, handle_signal);
 
     // Enable raw mode for terminal input
     enable_raw_mode();
 
-    // Load games
-    load_games();
+    // Scan for games in the directory
+    scan_games();
 
-    // Main loop
     while (1) {
-        draw_screen();
+        draw_menu();
 
         if (kbhit()) {
             char input = getch();
 
-            if (input == 'q') {
-                break; // Quit the main menu
-            } else if (input == 'd') {
-                selected_game = (selected_game + 1) % num_games; // Next game
+            if (input == 'w' && selected_game > 0) {
+                selected_game--;
+            } else if (input == 's' && selected_game < game_count - 1) {
+                selected_game++;
             } else if (input == 'a') {
-                selected_game = (selected_game - 1 + num_games) % num_games; // Previous game
+                selected_button = 0; // Select "Play" button
+            } else if (input == 'd') {
+                selected_button = 1; // Select "Exit" button
             } else if (input == '\n') { // Enter key
-                char command[MAX_NAME_LEN + 10];
-                snprintf(command, sizeof(command), "./%s", games[selected_game]);
-                disable_raw_mode();
-                system(command); // Execute the selected game
-                enable_raw_mode();
+                if (selected_button == 0) {
+                    execute_game(games[selected_game]);
+                } else if (selected_button == 1) {
+                    break;
+                }
+            } else if (input == 'q') {
+                break;
             }
         }
 
-        delay(200); // Slow down the loop
+        delay(100);
     }
 
     // Restore terminal settings before exiting
     disable_raw_mode();
+    printf("Exiting...\n");
     return 0;
 }
 
-void load_games() {
-    struct dirent *entry;
-    DIR *dp = opendir(".");
-
-    if (dp == NULL) {
-        perror("opendir");
-        exit(1);
-    }
-
-    while ((entry = readdir(dp))) {
-        if (strncmp(entry->d_name, "game_", 5) == 0) {
-            strncpy(games[num_games], entry->d_name, MAX_NAME_LEN - 1);
-            games[num_games][MAX_NAME_LEN - 1] = '\0';
-            num_games++;
-            if (num_games >= MAX_GAMES) break;
+void scan_games() {
+    DIR *d;
+    struct dirent *dir;
+    d = opendir(".");
+    if (d) {
+        while ((dir = readdir(d)) != NULL) {
+            if (strncmp(dir->d_name, "game_", 5) == 0) {
+                strncpy(games[game_count], dir->d_name, MAX_NAME_LEN - 1);
+                games[game_count][MAX_NAME_LEN - 1] = '\0';
+                game_count++;
+                if (game_count >= MAX_GAMES) break;
+            }
         }
-    }
-
-    closedir(dp);
-
-    if (num_games == 0) {
-        printf("No games found starting with 'game_'. Exiting...\n");
-        exit(1);
+        closedir(d);
     }
 }
 
-void draw_screen() {
-    system("clear"); // Clear the terminal screen
+void draw_menu() {
+    system("clear");
+    printf("=== Virtual Console Main Menu ===\n");
 
-    printf("====== MAIN MENU ======\n");
-    printf("Use 'a' and 'd' to navigate between games.\n");
-    printf("Press 'Enter' to play the selected game.\n");
-    printf("Press 'q' to quit.\n");
-    printf("=======================\n\n");
+    for (int i = 0; i < game_count; i++) {
+        if (i == selected_game) {
+            printf("-> %s\n", games[i]); // Highlight selected game
+        } else {
+            printf("   %s\n", games[i]);
+        }
+    }
 
-    printf("Selected Game: [%s]\n", games[selected_game]);
+    printf("\n[Play] %s  [Exit]\n", selected_button == 0 ? "<-" : "->");
+    printf("\nControls: W/S to navigate games, A/D to switch buttons, Enter to select, Q to quit\n");
+}
+
+void execute_game(char game_name[MAX_NAME_LEN]) {
+    system("clear");
+    printf("Launching %s...\n", game_name);
+    char command[MAX_NAME_LEN + 10];
+    snprintf(command, sizeof(command), "./%s", games[selected_game]);
+    disable_raw_mode();
+    system(command); // Execute the selected game
+    enable_raw_mode();
+}
+
+void handle_signal(int sig) {
+    disable_raw_mode();
+    printf("\nSignal %d received. Exiting gracefully...\n", sig);
+    exit(0);
 }
 
 void enable_raw_mode() {
@@ -121,12 +137,6 @@ void enable_raw_mode() {
 void disable_raw_mode() {
     // Restore original terminal settings
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
-}
-
-void handle_exit(int signum) {
-    disable_raw_mode();
-    printf("\nExiting gracefully...\n");
-    exit(0);
 }
 
 int kbhit() {
