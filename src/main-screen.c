@@ -83,7 +83,7 @@ int main() {
 void scan_games() {
     DIR *d;
     struct dirent *dir;
-    d = opendir(".");
+    d = opendir("../bin/");
     if (d) {
         while ((dir = readdir(d)) != NULL) {
             if (strncmp(dir->d_name, "game_", 5) == 0) {
