@@ -10,7 +10,7 @@
 
 #define GAME_WIDTH 60
 #define GAME_HEIGHT 8
-#define MAX_OBSTACLES 1
+#define MAX_OBSTACLES 100
 #define MAX_JUMP_HEIGHT 4 // Increased jump height
 void disable_raw_mode();
 int temporary = 1;
@@ -120,7 +120,7 @@ void generate_obstacle(GameState *game) {
     }
 
     // Random chance of generating an obstacle
-    if (rand() % 4 == 0 && game->obstacle_count < MAX_OBSTACLES) { // 25% chance
+    if (rand() % 4 == 0 && game->obstacle_count < MAX_OBSTACLES ) { // 25% chance
         game->obstacles[game->obstacle_count][0] = GAME_WIDTH + 2*(rand() % 10); // Random start position slightly beyond screen
         game->obstacle_count++;
         game->last_obstacle_time = current_time;
@@ -160,7 +160,8 @@ int check_collision(GameState *game) {
 
 // Function to render game state
 void render(GameState *game) {
-    system("clear");
+    // Clear the screen
+    printf("\033[H\033[J");
     // Add decorative stars at the top
     const char *decorative_lines[] = {
         "                                                ",
@@ -239,7 +240,7 @@ void render(GameState *game) {
 }
 void handle_signal(int sig) {
     disable_raw_mode();
-    printf("\nSignal %d received. Exiting gracefully...\n", sig);
+    printf("\033[H\033[J");
     exit(0);
 }
 
@@ -320,7 +321,7 @@ int main() {
 
         // Timing variables for frame rate control
         long long last_frame_time = get_milliseconds();
-        const long long FRAME_TIME = 20;  // 30 ms per frame (about 33 FPS)
+        const long long FRAME_TIME = 20;  // 20 ms per frame (about 50 FPS)
 
         while (1) {
             // Frame rate control
@@ -386,6 +387,7 @@ int main() {
         }
     } while (restart_game);
     // Restore terminal settings before exiting
+    printf("\033[H\033[J");
     disable_raw_mode();
 
     return 0;

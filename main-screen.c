@@ -119,7 +119,7 @@ void execute_game(char game_name[MAX_NAME_LEN]) {
 
 void handle_signal(int sig) {
     disable_raw_mode();
-    printf("\nSignal %d received. Exiting gracefully...\n", sig);
+    system("clear");
     exit(0);
 }
 

@@ -58,7 +58,7 @@ int main() {
         update_snake(direction);
         delay(300);
     }
-
+    
     disable_raw_mode();
     return 0;
 }
@@ -267,6 +267,8 @@ void disable_raw_mode() {
 void exit_game(int signal) {
     (void)signal; // Avoid unused parameter warning
     // Restore terminal settings
+    //clear the terminal
+    printf("\033[H\033[J");
     disable_raw_mode();
     // Free dynamically allocated memory
     free(snake);

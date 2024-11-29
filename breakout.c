@@ -6,11 +6,12 @@
 #include <string.h>
 #include <time.h>
 #include <ctype.h>
+#include <fcntl.h>
 
 #define WIDTH 50
 #define HEIGHT 20
 #define PADDLE_WIDTH 7
-#define BRICK_ROWS 5
+#define BRICK_ROWS 4
 #define BRICK_COLS 3
 #define BRICK_WIDTH (WIDTH / BRICK_COLS)
 #define PADDLE_SPEED 2  // Number of spaces paddle moves per key press
@@ -36,42 +37,90 @@ int bricks_left; // Count of remaining bricks
 // Terminal control functions
 struct termios orig_termios;
 
-void reset_terminal_mode() {
-    tcsetattr(STDIN_FILENO, TCSANOW, &orig_termios);
-}
 
-void set_raw_mode() {
-    struct termios raw;
-    tcgetattr(STDIN_FILENO, &orig_termios);
-    atexit(reset_terminal_mode);
-    raw = orig_termios;
-    raw.c_lflag &= ~(ECHO | ICANON);  // Disable echo and canonical mode
-    raw.c_cc[VMIN] = 0;              // Non-blocking input
-    raw.c_cc[VTIME] = 1;             // Timeout for read (tenths of a second)
-    tcsetattr(STDIN_FILENO, TCSANOW, &raw);
-}
+
 
 // Custom getch and kbhit implementations
 int kbhit() {
-    char c;
-    struct timeval tv = {0, 0};
-    fd_set fds;
-    FD_ZERO(&fds);
-    FD_SET(STDIN_FILENO, &fds);
-    return select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv);
-}
+    struct termios oldt, newt;
+    int ch;
+    int oldf;
 
-int getch() {
-    char c;
-    if (read(STDIN_FILENO, &c, 1) > 0) {
-        return tolower(c);
+    tcgetattr(STDIN_FILENO, &oldt);
+    newt = oldt;
+    newt.c_lflag &= ~(ICANON | ECHO);
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+    oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
+    fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
+
+    ch = getchar();
+    ch =tolower(ch);
+
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    fcntl(STDIN_FILENO, F_SETFL, oldf);
+
+    if (ch != EOF) {
+        ungetc(ch, stdin);
+        return 1;
     }
-    return -1;
+
+    return 0;
 }
 
-// Signal handling
-void handle_exit(int sig) {
-    running = 0;
+char getch() {
+    struct termios oldt, newt;
+    char ch;
+    
+
+    tcgetattr(STDIN_FILENO, &oldt);
+    newt = oldt;
+    newt.c_lflag &= ~(ICANON | ECHO);
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+    ch = getchar();
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+
+    return tolower(ch);
+}
+
+
+void enable_raw_mode() {
+    struct termios raw;
+
+    // Get current terminal settings
+    tcgetattr(STDIN_FILENO, &orig_termios);
+    raw = orig_termios;
+
+    // Disable canonical mode and echo
+    raw.c_lflag &= ~(ICANON | ECHO);
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+}
+
+void disable_raw_mode() {
+    // Restore original terminal settings
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
+}
+
+
+
+void exit_game(int signal) {
+    (void)signal; // Avoid unused parameter warning
+    // Restore terminal settings
+    //clear the terminal
+    printf("\033[H\033[J");
+    disable_raw_mode();
+    // Free dynamically allocated memory
+    exit(0);
+}
+
+void setup_signal_handlers() {
+    struct sigaction sa;
+    sa.sa_handler = exit_game;
+    sa.sa_flags = 0;
+    sigemptyset(&sa.sa_mask);
+
+    // Handle SIGINT (Ctrl+C) and SIGTERM signals
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
 }
 
 // Initialize the game state
@@ -85,10 +134,6 @@ void init_game() {
 
     memset(wall.bricks, 1, sizeof(wall.bricks)); // Fill all bricks with "1" (exists)
     bricks_left = BRICK_ROWS * BRICK_COLS;
-
-    signal(SIGINT, handle_exit);
-    signal(SIGTERM, handle_exit);
-    set_raw_mode();
 }
 
 // Draw the game state
@@ -148,14 +193,37 @@ void update_game() {
 
     // Check for game over
     if (ball.y >= HEIGHT) {
-        running = 0;
-        printf("\033[H\033[JGame Over!\n");
+        printf("\033[H\033[JGame Over! Q for exit, R for retry\n");
+        k: char choice;
+        choice = getch();
+        if(choice=='q' || choice == 'r'){
+                        
+            if (choice == 'r') {
+                init_game();
+            } else if (choice == 'q') {
+                exit_game(0);
+            }}
+            else{
+                goto k;
+            }
     }
 
     // Check for win
     if (bricks_left == 0) {
-        running = 0;
-        printf("\033[H\033[JYou Win!\n");
+       
+        printf("\033[H\033[JYou Win! Q for exit, R for playing again\n");
+        m: char choice;
+        choice = getch();
+        if(choice=='q' || choice == 'r'){
+                        
+            if (choice == 'r') {
+                init_game();
+            } else if (choice == 'q') {
+                exit_game(0);
+            }}
+            else{
+                goto m;
+            }
     }
 }
 
@@ -171,7 +239,9 @@ void process_input() {
             paddle.x += PADDLE_SPEED;
             if (paddle.x > WIDTH - PADDLE_WIDTH) paddle.x = WIDTH - PADDLE_WIDTH; // Prevent overflow
         }
-        if (c == 'q') running = 0;
+        if (c == 'q') {
+                exit_game(0);
+            }
     }
 }
 
@@ -201,6 +271,8 @@ void game_loop() {
 }
 
 int main() {
+    enable_raw_mode();
+    setup_signal_handlers();
     init_game();
     game_loop();
     return 0;
