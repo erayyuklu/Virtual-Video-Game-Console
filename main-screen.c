@@ -28,6 +28,7 @@ void execute_game(char[MAX_NAME_LEN]);
 int kbhit();
 char getch();
 void delay(int milliseconds);
+char* remove_game_prefix(char* input);
 
 int main() {
     // Set up signal handling
@@ -48,9 +49,14 @@ int main() {
 
             if (input == 'w' && selected_game > 0) {
                 selected_game--;
+            } else if (input == 'w' && selected_game == 0) {
+                selected_game=game_count-1;
             } else if (input == 's' && selected_game < game_count - 1) {
                 selected_game++;
-            } else if (input == 'a') {
+            }
+            else if (input == 's' && selected_game == game_count - 1) {
+                selected_game=0;
+            }  else if (input == 'a') {
                 selected_button = 0; // Select "Play" button
             } else if (input == 'd') {
                 selected_button = 1; // Select "Exit" button
@@ -93,19 +99,27 @@ void scan_games() {
 
 void draw_menu() {
     system("clear");
-    printf("=== Virtual Console Main Menu ===\n");
+    printf("============ Virtual Console Main Menu ============\n");
+    printf("\n");
 
     for (int i = 0; i < game_count; i++) {
         if (i == selected_game) {
-            printf("-> %s\n", games[i]); // Highlight selected game
-        } else {
-            printf("   %s\n", games[i]);
-        }
+            printf("                 -> %s\n", remove_game_prefix(games[i])); // Highlight selected game
+        } 
     }
 
     printf("\n[Play] %s  [Exit]\n", selected_button == 0 ? "<-" : "->");
     printf("\nControls: W/S to navigate games, A/D to switch buttons, Enter to select, Q to quit\n");
 }
+
+char* remove_game_prefix(char input[MAX_NAME_LEN]) {
+    // Find the first occurrence of the underscore character
+    char *underscore_position = strchr(input, '_');
+    
+    // Return the string starting right after the underscore
+    return underscore_position + 1;
+}
+
 
 void execute_game(char game_name[MAX_NAME_LEN]) {
     system("clear");
