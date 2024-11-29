@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <stdbool.h>
 #include <signal.h>
+#include <ctype.h>
 
 #define ROWS 15
 #define COLS 15
@@ -15,14 +16,16 @@ typedef struct {
     int x, y;
 } Point;
 
-Point snake[ROWS * COLS];
+Point *snake = NULL; // Dynamically allocated array for snake
 int snake_length = 2;
+int snake_capacity; // Capacity for the snake array
 Point food;
 char direction = 'd';
 
 // Terminal configuration
 struct termios orig_termios;
 
+// Function prototypes
 void initialize_game();
 void draw_board();
 void generate_food();
@@ -34,51 +37,47 @@ void delay(int milliseconds);
 void enable_raw_mode();
 void disable_raw_mode();
 void exit_game(int signal);
-
-// Signal handler setup for graceful exit
 void setup_signal_handlers();
 
 int main() {
-    // Enable raw mode for terminal input
     enable_raw_mode();
-    
-    // Setup signal handlers for SIGINT and SIGTERM
     setup_signal_handlers();
-
     initialize_game();
 
     while (1) {
         draw_board();
+
         if (kbhit()) {
             char input = getch();
-            if (input == 'w' || input == 'a' || input == 's' || input == 'd') {
-                direction = input;
-            }
             if (input == 'q') {
-                // Gracefully exit the game when 'q' is pressed
                 exit_game(0);
             }
+            direction = tolower(input);
         }
+
         update_snake(direction);
-
-        if (check_collision()) {
-            direction = 'p'; // Stop the snake until a valid input
-        }
-
         delay(300);
     }
 
-    // Restore terminal settings before exiting
     disable_raw_mode();
     return 0;
 }
 
+
 void initialize_game() {
+    // Set initial capacity for the snake
+    snake_capacity = ROWS * COLS;
+    snake = (Point *)malloc(snake_capacity * sizeof(Point));
+    if (snake == NULL) {
+        perror("Failed to allocate memory for snake");
+        exit(EXIT_FAILURE);
+    }
+
     // Initialize snake length and position
     snake_length = 2;
 
     // Set all positions in the snake array to an invalid state (-1, -1)
-    for (int i = 0; i < ROWS * COLS; i++) {
+    for (int i = 0; i < snake_capacity; i++) {
         snake[i].x = -1;
         snake[i].y = -1;
     }
@@ -151,6 +150,10 @@ void generate_food() {
 }
 
 void update_snake(char input) {
+    if (direction == 'p') {
+        return; // Snake is paused due to collision with border
+    }
+
     Point next_head = snake[snake_length - 1]; // Determine next head position
 
     // Update the next head position based on input
@@ -159,15 +162,25 @@ void update_snake(char input) {
     else if (input == 's') next_head.x++;
     else if (input == 'd') next_head.y++;
 
-    // Wrap the head position around the board edges
-    next_head.x = (next_head.x + ROWS) % ROWS; // Ensure x is within 0 to ROWS-1
-    next_head.y = (next_head.y + COLS) % COLS; // Ensure y is within 0 to COLS-1
+    // Check for border collisions
+    if (next_head.x < 0 || next_head.x >= ROWS || next_head.y < 0 || next_head.y >= COLS) {
+        direction = 'p'; // Pause the game if the border is hit
+        return;
+    }
 
     // Check if food is eaten
     bool ate_food = (next_head.x == food.x && next_head.y == food.y);
 
     if (ate_food) {
-        // Grow the snake by not shifting the tail
+        // Grow the snake by increasing its capacity if needed
+        if (snake_length >= snake_capacity) {
+            snake_capacity *= 2; // Double the capacity
+            snake = (Point *)realloc(snake, snake_capacity * sizeof(Point));
+            if (snake == NULL) {
+                perror("Failed to reallocate memory for snake");
+                exit(EXIT_FAILURE);
+            }
+        }
         snake_length++;
         generate_food(); // Generate new food
     } else {
@@ -180,7 +193,6 @@ void update_snake(char input) {
     // Add the new head position
     snake[snake_length - 1] = next_head;
 }
-
 
 
 int check_collision() {
@@ -203,6 +215,7 @@ int kbhit() {
     fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
 
     ch = getchar();
+    ch =tolower(ch);
 
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
     fcntl(STDIN_FILENO, F_SETFL, oldf);
@@ -218,6 +231,7 @@ int kbhit() {
 char getch() {
     struct termios oldt, newt;
     char ch;
+    
 
     tcgetattr(STDIN_FILENO, &oldt);
     newt = oldt;
@@ -226,7 +240,7 @@ char getch() {
     ch = getchar();
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
 
-    return ch;
+    return tolower(ch);
 }
 
 void delay(int milliseconds) {
@@ -250,18 +264,15 @@ void disable_raw_mode() {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
 }
 
-// Gracefully exit the game
 void exit_game(int signal) {
-    (void) signal; // Avoid unused parameter warning
-    printf("\nExiting the game...\n");
-
+    (void)signal; // Avoid unused parameter warning
     // Restore terminal settings
     disable_raw_mode();
-
+    // Free dynamically allocated memory
+    free(snake);
     exit(0);
 }
 
-// Set up signal handlers for SIGINT and SIGTERM
 void setup_signal_handlers() {
     struct sigaction sa;
     sa.sa_handler = exit_game;

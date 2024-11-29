@@ -6,6 +6,7 @@
 #include <termios.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <ctype.h>
 
 #define MAX_GAMES 100
 #define MAX_NAME_LEN 256
@@ -69,7 +70,7 @@ int main() {
 
     // Restore terminal settings before exiting
     disable_raw_mode();
-    printf("Exiting...\n");
+    system("clear");
     return 0;
 }
 
@@ -152,6 +153,7 @@ int kbhit() {
     fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
 
     ch = getchar();
+    ch=tolower(ch);
 
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
     fcntl(STDIN_FILENO, F_SETFL, oldf);
@@ -175,7 +177,7 @@ char getch() {
     ch = getchar();
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
 
-    return ch;
+    return tolower(ch);
 }
 
 void delay(int milliseconds) {

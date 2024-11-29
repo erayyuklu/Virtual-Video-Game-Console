@@ -5,14 +5,18 @@
 #include <termios.h>
 #include <fcntl.h>
 #include <sys/time.h>
+#include <signal.h>
+#include <ctype.h>
 
 #define GAME_WIDTH 60
 #define GAME_HEIGHT 8
-#define MAX_OBSTACLES 50
+#define MAX_OBSTACLES 1
 #define MAX_JUMP_HEIGHT 4 // Increased jump height
-
+void disable_raw_mode();
 int temporary = 1;
 
+struct termios orig_termios;
+int selected_button = 0; // 0: Play, 1: Exit
 // Enum to manage jump state
 typedef enum {
     GROUNDED,
@@ -48,37 +52,7 @@ void init_game(GameState *game) {
     game->jump_frame_counter = 0;
 }
 
-// Function to check keyboard input without blocking
-int kbhit() {
-    struct termios oldt, newt;
-    int ch;
-    int oldf;
 
-    // Get current terminal settings
-    tcgetattr(STDIN_FILENO, &oldt);
-    newt = oldt;
-
-    // Disable canonical mode and echo
-    newt.c_lflag &= ~(ICANON | ECHO);
-    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-
-    // Set stdin to non-blocking mode
-    oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
-    fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
-
-    ch = getchar();
-
-    // Restore terminal settings
-    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-    fcntl(STDIN_FILENO, F_SETFL, oldf);
-
-    if (ch != EOF) {
-        ungetc(ch, stdin); // Put character back into the input buffer
-        return 1;
-    }
-
-    return 0;
-}
 
 // Function to manage dinosaur jump
 void manage_jump(GameState *game) {
@@ -263,9 +237,79 @@ void render(GameState *game) {
     printf("Score: %d\n", 
            game->score);
 }
+void handle_signal(int sig) {
+    disable_raw_mode();
+    printf("\nSignal %d received. Exiting gracefully...\n", sig);
+    exit(0);
+}
+
+void enable_raw_mode() {
+    struct termios raw;
+
+    // Get current terminal settings
+    tcgetattr(STDIN_FILENO, &orig_termios);
+    raw = orig_termios;
+
+    // Disable canonical mode and echo
+    raw.c_lflag &= ~(ICANON | ECHO);
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+}
+
+void disable_raw_mode() {
+    // Restore original terminal settings
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
+}
+
+int kbhit() {
+    struct termios oldt, newt;
+    int ch;
+    int oldf;
+
+    tcgetattr(STDIN_FILENO, &oldt);
+    newt = oldt;
+    newt.c_lflag &= ~(ICANON | ECHO);
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+    oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
+    fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
+
+    ch = getchar();
+    ch=tolower(ch);
+
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    fcntl(STDIN_FILENO, F_SETFL, oldf);
+
+    if (ch != EOF) {
+        ungetc(ch, stdin);
+        return 1;
+    }
+
+    return 0;
+}
+
+char getch() {
+    struct termios oldt, newt;
+    char ch;
+
+    tcgetattr(STDIN_FILENO, &oldt);
+    newt = oldt;
+    newt.c_lflag &= ~(ICANON | ECHO);
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+    ch = getchar();
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+
+    return tolower(ch);
+}
+
 
 int main() {
+      // Set up signal handling
+    signal(SIGINT, handle_signal);
+    signal(SIGTERM, handle_signal);
+
+    // Enable raw mode for terminal input
+    enable_raw_mode();
     // Seed random number generator
+
     srand(time(NULL));
 
     GameState game;
@@ -290,6 +334,7 @@ int main() {
                     start_jump(&game);
                 }
                 if (ch == 'q') {
+                    restart_game=0;
                     break;
                 }
             }
@@ -308,16 +353,24 @@ int main() {
                 // Check for collision
                 if (check_collision(&game)) {
                     printf("Game Over! Final Score: %d\n", game.score);
-                    printf("Do you want to play again? (y/n) ");
-                    char choice;
-                    scanf("%c", &choice);
-                    if (choice == 'y') {
-                        restart_game = 1;
-                        break;
-                    } else {
-                        restart_game = 0;
+                    printf("Jump for retry or press Q for exit\n");
+                    
+                    k: char choice;
+                    choice = getch();
+                    if(choice=='q' || choice == ' '){
+                        
+                        if (choice == ' ') {
+                            restart_game = 1;
+                            break;
+                        } else if (choice == 'q') {
+                            restart_game = 0;
+                            break;
+                        }}
+                    else{
+                        goto k;
                         break;
                     }
+                    
                 }
 
                 // Render game state
@@ -332,6 +385,8 @@ int main() {
             }
         }
     } while (restart_game);
+    // Restore terminal settings before exiting
+    disable_raw_mode();
 
     return 0;
 }

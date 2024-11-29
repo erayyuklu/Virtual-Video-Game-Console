@@ -5,6 +5,7 @@
 #include <signal.h>
 #include <string.h>
 #include <time.h>
+#include <ctype.h>
 
 #define WIDTH 50
 #define HEIGHT 20
@@ -44,10 +45,28 @@ void set_raw_mode() {
     tcgetattr(STDIN_FILENO, &orig_termios);
     atexit(reset_terminal_mode);
     raw = orig_termios;
-    raw.c_lflag &= ~(ECHO | ICANON);
-    raw.c_cc[VMIN] = 0;
-    raw.c_cc[VTIME] = 0; // Non-blocking input
+    raw.c_lflag &= ~(ECHO | ICANON);  // Disable echo and canonical mode
+    raw.c_cc[VMIN] = 0;              // Non-blocking input
+    raw.c_cc[VTIME] = 1;             // Timeout for read (tenths of a second)
     tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+}
+
+// Custom getch and kbhit implementations
+int kbhit() {
+    char c;
+    struct timeval tv = {0, 0};
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(STDIN_FILENO, &fds);
+    return select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv);
+}
+
+int getch() {
+    char c;
+    if (read(STDIN_FILENO, &c, 1) > 0) {
+        return tolower(c);
+    }
+    return -1;
 }
 
 // Signal handling
@@ -94,6 +113,7 @@ void draw_game() {
     for (int i = 0; i < PADDLE_WIDTH; i++) {
         printf("\033[%d;%dH=", HEIGHT, paddle.x + i + 1);
     }
+    printf("\n");
 
     fflush(stdout);
 }
@@ -141,8 +161,8 @@ void update_game() {
 
 // Read user input and move paddle
 void process_input() {
-    char c;
-    while (read(STDIN_FILENO, &c, 1) > 0) {
+    if (kbhit()) {
+        int c = getch();
         if (c == 'a' && paddle.x > 0) {
             paddle.x -= PADDLE_SPEED;
             if (paddle.x < 0) paddle.x = 0; // Prevent overflow
@@ -165,7 +185,6 @@ void game_loop() {
     while (running) {
         draw_game();
 
-        // Poll for input more frequently
         process_input();
 
         // Update game state only on regular intervals
