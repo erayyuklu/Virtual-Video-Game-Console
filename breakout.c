@@ -138,7 +138,7 @@ void init_game() {
 
 // Draw the game state
 void draw_game() {
-    system("clear");
+    printf("\033[H\033[J");
 
     // Draw bricks
     for (int i = 0; i < BRICK_ROWS; i++) {
