@@ -2,9 +2,9 @@
 
 # Variables
 IMAGE_FILE="./storage_vgc.img"
-MOUNT_DIR="./mount"
+MOUNT_DIR="./"
 SYMLINK_DEVICE="./my_device"  # The symbolic link for the device file
-MOUNT_POINT="${MOUNT_DIR}/virtual_disk"
+MOUNT_POINT="${MOUNT_DIR}/mount"
 
 # Function to check for errors and exit if any
 check_error() {
@@ -14,47 +14,40 @@ check_error() {
     fi
 }
 
-# Step 1: Unmount the partition if it's mounted
-echo "Unmounting the partition at $MOUNT_POINT..."
+#  Unmount the partition if it's mounted
 if mountpoint -q $MOUNT_POINT; then
     sudo umount $MOUNT_POINT
     check_error
-else
-    echo "$MOUNT_POINT is not mounted."
 fi
 
-# Step 2: Remove the mounted virtual disk directory (optional, only if needed)
-echo "Removing mount point directory $MOUNT_POINT..."
+# Remove the mounted virtual disk directory (optional, only if needed)
 sudo rm -rf $MOUNT_POINT
 check_error
 
-# Step 3: Detach the loop device (if it is still attached)
-LOOP_DEVICE=$(sudo losetup --find --show $IMAGE_FILE)
-if [ -n "$LOOP_DEVICE" ]; then
-    echo "Detaching loop device $LOOP_DEVICE..."
-    sudo losetup -d $LOOP_DEVICE
-    check_error
-else
-    echo "No loop device found for the image."
+# Detach the loop device (if it is still attached) using symbolic link
+if [ -L "$SYMLINK_DEVICE" ]; then
+    # Resolve the symlink to the actual device file
+    LOOP_DEVICE=$(readlink -f "$SYMLINK_DEVICE")
+    
+    # Check if the device is a loop device
+    if [[ "$LOOP_DEVICE" == /dev/loop* ]]; then
+        # Detach the loop device
+        sudo losetup -d $LOOP_DEVICE
+        check_error
+    fi
 fi
 
-# Step 4: Remove the symbolic link for the device file
+#  Remove the symbolic link for the device file
 if [ -L "$SYMLINK_DEVICE" ]; then
-    echo "Removing symbolic link for the device file at $SYMLINK_DEVICE..."
+
     sudo rm -f $SYMLINK_DEVICE
     check_error
-else
-    echo "No symbolic link found at $SYMLINK_DEVICE."
+
 fi
 
-# Step 5: Remove the disk image file
+# Remove the disk image file
 if [ -f "$IMAGE_FILE" ]; then
-    echo "Removing disk image file $IMAGE_FILE..."
     sudo rm -f $IMAGE_FILE
     check_error
-else
-    echo "$IMAGE_FILE does not exist."
 fi
-
-echo "Purge completed. All files and the virtual disk image have been removed."
 
