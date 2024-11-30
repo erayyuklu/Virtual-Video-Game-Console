@@ -20,19 +20,19 @@ if mountpoint -q $MOUNT_POINT; then
     check_error
 fi
 
-#  Remove the mounted virtual disk directory (optional, only if needed)
+# Remove the mounted virtual disk directory (optional, only if needed)
 sudo rm -rf $MOUNT_POINT
 check_error
 
-#  Detach the loop device (if it is still attached) using symbolic link
+# Detach the loop device (if it is still attached) using symbolic link
 if [ -L "$SYMLINK_DEVICE" ]; then
     # Resolve the symlink to the actual device file
     LOOP_DEVICE=$(readlink -f "$SYMLINK_DEVICE")
     
     # Check if the device is a loop device
     if [[ "$LOOP_DEVICE" == /dev/loop* ]]; then
-        # Detach the loop device
-        sudo losetup -d $LOOP_DEVICE
+        # Detach the loop device, and ignore the error if it's already detached
+        sudo losetup -d $LOOP_DEVICE || true  # Ignore error if the device is already detached
         check_error
     fi
 fi
@@ -42,3 +42,5 @@ if [ -L "$SYMLINK_DEVICE" ]; then
     sudo rm -f $SYMLINK_DEVICE
     check_error
 fi
+
+

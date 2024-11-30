@@ -31,18 +31,16 @@ if [ -L "$SYMLINK_DEVICE" ]; then
     
     # Check if the device is a loop device
     if [[ "$LOOP_DEVICE" == /dev/loop* ]]; then
-        # Detach the loop device
-        sudo losetup -d $LOOP_DEVICE
+        # Detach the loop device, and ignore the error if it's already detached
+        sudo losetup -d $LOOP_DEVICE || true  # Ignore error if the device is already detached
         check_error
     fi
 fi
 
 #  Remove the symbolic link for the device file
 if [ -L "$SYMLINK_DEVICE" ]; then
-
     sudo rm -f $SYMLINK_DEVICE
     check_error
-
 fi
 
 # Remove the disk image file
@@ -50,4 +48,6 @@ if [ -f "$IMAGE_FILE" ]; then
     sudo rm -f $IMAGE_FILE
     check_error
 fi
+
+
 
