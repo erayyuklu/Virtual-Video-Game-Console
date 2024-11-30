@@ -11,16 +11,15 @@
 #define ROWS 15
 #define COLS 15
 
-// Snake structure
 typedef struct {
     int x, y;
 } Point;
 
-Point *snake = NULL; // Dynamically allocated array for snake
+Point *snake = NULL;
 int snake_length = 2;
-int snake_capacity; // Capacity for the snake array
+int snake_capacity;
 Point food;
-char direction = 'd';
+char direction = 'a';
 
 // Terminal configuration
 struct termios orig_termios;
@@ -30,7 +29,8 @@ void initialize_game();
 void draw_board();
 void generate_food();
 void update_snake(char input);
-int check_collision();
+bool is_collision(Point next_head);
+void wait_for_valid_input();
 int kbhit();
 char getch();
 void delay(int milliseconds);
@@ -52,72 +52,68 @@ int main() {
             if (input == 'q') {
                 exit_game(0);
             }
-            direction = tolower(input);
+            input = tolower(input);
+            if ((input == 'w' && direction != 's') ||
+                (input == 's' && direction != 'w') ||
+                (input == 'a' && direction != 'd') ||
+                (input == 'd' && direction != 'a')) {
+                direction = input;
+            }
         }
 
         update_snake(direction);
-        delay(300);
+        delay(150);
     }
-    
+
     disable_raw_mode();
     return 0;
 }
 
-
-void initialize_game() {
-    // Set initial capacity for the snake
+void initialize_game() { // Initialize the game state
     snake_capacity = ROWS * COLS;
     snake = (Point *)malloc(snake_capacity * sizeof(Point));
-    if (snake == NULL) {
+    if (!snake) {
         perror("Failed to allocate memory for snake");
         exit(EXIT_FAILURE);
     }
 
-    // Initialize snake length and position
     snake_length = 2;
 
-    // Set all positions in the snake array to an invalid state (-1, -1)
     for (int i = 0; i < snake_capacity; i++) {
         snake[i].x = -1;
         snake[i].y = -1;
     }
 
-    // Initialize the first two segments of the snake
     snake[0].x = ROWS / 2;
     snake[0].y = COLS / 2;
     snake[1].x = ROWS / 2;
     snake[1].y = (COLS / 2) - 1;
 
-    // Generate initial food
     generate_food();
 }
 
-void draw_board() {
-    system("clear"); // Clear the terminal screen
+void draw_board() { // Draw the game state
+    printf("\033[H\033[J");
 
     for (int i = 0; i < ROWS; i++) {
         for (int j = 0; j < COLS; j++) {
-            int is_snake = 0;
-            int is_head = 0;
+            int is_snake = 0, is_head = 0;
 
-            // Check if the current cell is the snake's head
             if (snake[snake_length - 1].x == i && snake[snake_length - 1].y == j) {
                 is_head = 1;
-                printf("O "); // Snake's head
+                printf("O ");
             }
 
-            // Check if the current cell is part of the snake's body
-            if (!is_head) { // Only check for body if it's not the head
+            if (!is_head) {
                 for (int k = 0; k < snake_length - 1; k++) {
                     if (snake[k].x == i && snake[k].y == j) {
                         is_snake = 1;
-                        printf("# "); // Snake's body
+                        printf("# ");
                         break;
                     }
                 }
             }
 
-            // Print the food or empty cell if not part of the snake
             if (!is_snake && !is_head) {
                 if (food.x == i && food.y == j) {
                     printf("X ");
@@ -130,13 +126,12 @@ void draw_board() {
     }
 }
 
-void generate_food() {
+void generate_food() { // Generate food at a random location
     srand(time(NULL));
     while (1) {
         food.x = rand() % ROWS;
         food.y = rand() % COLS;
 
-        // Ensure food doesn't spawn on the snake
         int on_snake = 0;
         for (int i = 0; i < snake_length; i++) {
             if (snake[i].x == food.x && snake[i].y == food.y) {
@@ -149,63 +144,99 @@ void generate_food() {
     }
 }
 
-void update_snake(char input) {
-    if (direction == 'p') {
-        return; // Snake is paused due to collision with border
+bool is_collision(Point next_head) { // Check for collision with walls or itself
+    if (next_head.x < 0 || next_head.x >= ROWS || next_head.y < 0 || next_head.y >= COLS) {
+        return true;
     }
 
-    Point next_head = snake[snake_length - 1]; // Determine next head position
+    for (int i = 0; i < snake_length; i++) {
+        if (snake[i].x == next_head.x && snake[i].y == next_head.y) {
+            return true;
+        }
+    }
 
-    // Update the next head position based on input
+    return false;
+}
+
+void wait_for_valid_input() { // Wait for valid input to change direction
+    while (1) {
+        if (kbhit()) {
+            char new_input = getch();
+            new_input = tolower(new_input);
+
+            Point new_next_head = snake[snake_length - 1]; // Current head position
+
+            // Determine potential new head position based on input
+            if (new_input == 'w') new_next_head.x--;
+            else if (new_input == 'a') new_next_head.y--;
+            else if (new_input == 's') new_next_head.x++;
+            else if (new_input == 'd') new_next_head.y++;
+            else if (new_input == 'q') exit_game(0);
+
+            // Check if the cell is valid (inside the board and empty)
+            bool is_valid_cell = 
+                new_next_head.x >= 0 && new_next_head.x < ROWS &&
+                new_next_head.y >= 0 && new_next_head.y < COLS;
+
+            if (is_valid_cell) {
+                // Check if the cell is empty (".")
+                bool is_empty_cell = true;
+                for (int i = 0; i < snake_length; i++) {
+                    if (snake[i].x == new_next_head.x && snake[i].y == new_next_head.y) {
+                        is_empty_cell = false;
+                        break;
+                    }
+                }
+
+                if (is_empty_cell) {
+                    // Set direction and exit
+                    direction = new_input;
+                    break;
+                }
+            }
+        }
+    }
+}
+
+
+void update_snake(char input) { // Update the snake's position
+    Point next_head = snake[snake_length - 1];
+
     if (input == 'w') next_head.x--;
     else if (input == 'a') next_head.y--;
     else if (input == 's') next_head.x++;
     else if (input == 'd') next_head.y++;
 
-    // Check for border collisions
-    if (next_head.x < 0 || next_head.x >= ROWS || next_head.y < 0 || next_head.y >= COLS) {
-        direction = 'p'; // Pause the game if the border is hit
+    if (is_collision(next_head)) {
+        wait_for_valid_input();
         return;
     }
 
-    // Check if food is eaten
     bool ate_food = (next_head.x == food.x && next_head.y == food.y);
 
-    if (ate_food) {
-        // Grow the snake by increasing its capacity if needed
+    if (ate_food) { // Increase snake length and generate new food
         if (snake_length >= snake_capacity) {
-            snake_capacity *= 2; // Double the capacity
+            snake_capacity *= 2;
             snake = (Point *)realloc(snake, snake_capacity * sizeof(Point));
-            if (snake == NULL) {
+            if (!snake) {
                 perror("Failed to reallocate memory for snake");
                 exit(EXIT_FAILURE);
             }
         }
         snake_length++;
-        generate_food(); // Generate new food
+        generate_food();
     } else {
-        // Shift the snake's body only if no food was eaten
         for (int i = 0; i < snake_length - 1; i++) {
             snake[i] = snake[i + 1];
         }
     }
 
-    // Add the new head position
     snake[snake_length - 1] = next_head;
 }
 
-
-int check_collision() {
-    Point head = snake[snake_length - 1];
-
-    // Allow the snake to pass over itself; no need to stop or treat this as a collision.
-    return 0; // Always return 0 to ignore self-collision.
-}
-
-int kbhit() {
+int kbhit() { // Check if a key has been pressed
     struct termios oldt, newt;
-    int ch;
-    int oldf;
+    int ch, oldf;
 
     tcgetattr(STDIN_FILENO, &oldt);
     newt = oldt;
@@ -215,7 +246,6 @@ int kbhit() {
     fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
 
     ch = getchar();
-    ch =tolower(ch);
 
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
     fcntl(STDIN_FILENO, F_SETFL, oldf);
@@ -228,10 +258,9 @@ int kbhit() {
     return 0;
 }
 
-char getch() {
+char getch() { // Read a character from the input
     struct termios oldt, newt;
     char ch;
-    
 
     tcgetattr(STDIN_FILENO, &oldt);
     newt = oldt;
@@ -243,45 +272,37 @@ char getch() {
     return tolower(ch);
 }
 
-void delay(int milliseconds) {
-    usleep(milliseconds * 500);
+void delay(int milliseconds) {// Delay the program
+    usleep(milliseconds * 1000);
 }
 
-void enable_raw_mode() {
+void enable_raw_mode() { // Enable raw mode for terminal input
     struct termios raw;
 
-    // Get current terminal settings
     tcgetattr(STDIN_FILENO, &orig_termios);
     raw = orig_termios;
 
-    // Disable canonical mode and echo
     raw.c_lflag &= ~(ICANON | ECHO);
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
-void disable_raw_mode() {
-    // Restore original terminal settings
+void disable_raw_mode() { // Disable raw mode and restore terminal settings
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
 }
 
-void exit_game(int signal) {
-    (void)signal; // Avoid unused parameter warning
-    // Restore terminal settings
-    //clear the terminal
-    printf("\033[H\033[J");
+void exit_game(int signal) { // Exit the game
+    (void)signal;
     disable_raw_mode();
-    // Free dynamically allocated memory
     free(snake);
     exit(0);
 }
 
-void setup_signal_handlers() {
+void setup_signal_handlers() { // Set up signal handlers for SIGINT and SIGTERM
     struct sigaction sa;
     sa.sa_handler = exit_game;
     sa.sa_flags = 0;
     sigemptyset(&sa.sa_mask);
 
-    // Handle SIGINT (Ctrl+C) and SIGTERM signals
     sigaction(SIGINT, &sa, NULL);
     sigaction(SIGTERM, &sa, NULL);
 }

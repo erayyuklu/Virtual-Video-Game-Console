@@ -80,7 +80,7 @@ int main() {
     return 0;
 }
 
-void scan_games() {
+void scan_games() { // Scan for games in the current directory
     DIR *d;
     struct dirent *dir;
     d = opendir("./");
@@ -97,7 +97,7 @@ void scan_games() {
     }
 }
 
-void draw_menu() {
+void draw_menu() { // Draw the main menu
     system("clear");
     printf("============ Virtual Console Main Menu ============\n");
     printf("\n");
@@ -108,7 +108,7 @@ void draw_menu() {
         } 
     }
 
-    printf("\n[Play] %s  [Exit]\n", selected_button == 0 ? "<-" : "->");
+    printf("\n               [Play] %s  [Exit]\n", selected_button == 0 ? "<-" : "->");
     printf("\nControls: W/S to navigate games, A/D to switch buttons, Enter to select, Q to quit\n");
 }
 
@@ -154,7 +154,7 @@ void disable_raw_mode() {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
 }
 
-int kbhit() {
+int kbhit() { // Check if a key has been pressed
     struct termios oldt, newt;
     int ch;
     int oldf;
@@ -180,7 +180,7 @@ int kbhit() {
     return 0;
 }
 
-char getch() {
+char getch() { // Read a character from the input
     struct termios oldt, newt;
     char ch;
 
@@ -194,6 +194,6 @@ char getch() {
     return tolower(ch);
 }
 
-void delay(int milliseconds) {
+void delay(int milliseconds) { // Delay the program
     usleep(milliseconds * 1000);
 }

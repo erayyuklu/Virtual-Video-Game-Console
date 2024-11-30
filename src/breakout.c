@@ -40,8 +40,7 @@ struct termios orig_termios;
 
 
 
-// Custom getch and kbhit implementations
-int kbhit() {
+int kbhit() {// Check if a key has been pressed
     struct termios oldt, newt;
     int ch;
     int oldf;
@@ -67,7 +66,7 @@ int kbhit() {
     return 0;
 }
 
-char getch() {
+char getch() {// Read a character from the input
     struct termios oldt, newt;
     char ch;
     
@@ -104,11 +103,9 @@ void disable_raw_mode() {
 
 void exit_game(int signal) {
     (void)signal; // Avoid unused parameter warning
-    // Restore terminal settings
     //clear the terminal
     printf("\033[H\033[J");
     disable_raw_mode();
-    // Free dynamically allocated memory
     exit(0);
 }
 

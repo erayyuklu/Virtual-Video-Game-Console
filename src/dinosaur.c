@@ -261,7 +261,7 @@ void disable_raw_mode() {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
 }
 
-int kbhit() {
+int kbhit() { // Check if a key has been pressed
     struct termios oldt, newt;
     int ch;
     int oldf;
@@ -287,7 +287,7 @@ int kbhit() {
     return 0;
 }
 
-char getch() {
+char getch() { // Read a character from the input
     struct termios oldt, newt;
     char ch;
 

@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "*.pro": "prolog",
+        "time.h": "c"
+    }
+}
