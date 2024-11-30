@@ -5,7 +5,6 @@ IMAGE_FILE="./storage_vgc.img"
 MOUNT_DIR="./mount"
 SYMLINK_DEVICE="./my_device"  # The symbolic link for the device file in the same directory as the script
 MOUNT_POINT="${MOUNT_DIR}/virtual_disk"  # This is where the disk will be mounted
-BIN_DIR="./bin"
 
 # Function to check for errors and exit if any
 check_error() {
@@ -49,16 +48,6 @@ check_error
 echo "Creating symbolic link for the loop device at $SYMLINK_DEVICE..."
 sudo ln -sf $LOOP_DEVICE $SYMLINK_DEVICE
 check_error
-
-# Step 7: Copy files to the mounted partition (if BIN_DIR exists)
-echo "Copying files from $BIN_DIR to $MOUNT_POINT..."
-if [ -d "$BIN_DIR" ]; then
-    sudo cp -r $BIN_DIR/* $MOUNT_POINT
-    check_error
-    echo "Files copied successfully to $MOUNT_POINT."
-else
-    echo "$BIN_DIR does not exist. No files to copy."
-fi
 
 echo "Virtual disk setup complete. The virtual disk is mounted at $MOUNT_POINT."
 
